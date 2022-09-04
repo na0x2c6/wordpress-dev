@@ -1,0 +1,42 @@
+version: '3.3'
+
+services:
+  web:
+    build:
+      context: ./build/web/
+      args:
+        WP_IMAGE_TAG: $WP_IMAGE_TAG
+    restart: always
+    ports:
+      - 8000:80
+    volumes:
+      - ./html:/var/www/html
+  db:
+    image: docker.io/library/mariadb:${MARIADB_VER:-latest}
+    restart: always
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
+    env_file:
+      - .db.env
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --sql_mode=''
+    volumes:
+      - mariadb:/var/lib/mysql
+  mail:
+    build: ./build/mailhog/
+    ports:
+      - 8025:8025
+
+  adminer:
+    image: docker.io/library/adminer
+    restart: always
+    ports:
+      - 8080:8080
+  cli:
+    image: wordpress:${WP_CLI_IMAGE_TAG}
+    profiles:
+      - cli
+    volumes:
+      - ./html:/var/www/html
+
+volumes:
+  mariadb:

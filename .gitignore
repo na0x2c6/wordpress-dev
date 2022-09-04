@@ -1,0 +1,16 @@
+/html/*
+/sql/*
+!.gitkeep
+*.log
+.rsync_exlude
+
+.DS_Store
+
+.env
+.env.makefile
+.db.env
+.envrc
+build-docker
+
+do-deploy
+deploy-with-skipping-confirm

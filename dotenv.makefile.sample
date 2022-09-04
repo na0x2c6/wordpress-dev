@@ -1,0 +1,25 @@
+# Copy this file and edit for your environment and save as `.env.makefile`
+
+PHP_VER := 8.1
+export MARIADB_VER := 10.3
+
+export WP_IMAGE_TAG := php$(PHP_VER)-apache
+export WP_CLI_IMAGE_TAG := cli-php$(PHP_VER)
+
+# WP_INSTALL_DIR := wp
+# WP_CONF := $(HTML_DIR)/$(WP_INSTALL_DIR)/wp-config.php
+
+# DOCKER = PODMAN
+
+SSH_REMOTE_HOST := example.com
+
+SITE_URL_PATTERN := https?://(www.)?example.com
+LOCAL_URL := http://localhost:8000
+
+REMOTE_DOCROOT_PATH := /home/example.com/html
+LOCAL_DOCROOT := /var/www/html/
+
+# CLONE_EXCLUDE=
+
+# To use misc
+# include misc/disable-really-simple-ssl.makefile
