@@ -6,8 +6,12 @@ export MARIADB_VER := 10.3
 export WP_IMAGE_TAG := php$(PHP_VER)-apache
 export WP_CLI_IMAGE_TAG := cli-php$(PHP_VER)
 
+# HTML_DIR := html/www
 # WP_INSTALL_DIR := wp
 # WP_CONF := $(HTML_DIR)/$(WP_INSTALL_DIR)/wp-config.php
+
+# To change host directory to manage wp
+# export WP_LOCAL_ROOT := ./$(HTML_DIR)
 
 # DOCKER = PODMAN
 
