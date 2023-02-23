@@ -3,7 +3,6 @@ SQL_DIR := sql
 WP_CONFIG_FILENAME := wp-config.php
 
 DOCKER_COMPOSE_YML := docker-compose.yml
-DOCKER_COMPOSE_UP_OPT := -d
 
 DOCKER_COMPOSE = docker-compose -f $(DOCKER_COMPOSE_YML)
 
@@ -28,6 +27,8 @@ deploy-once-file = ./do-deploy
 deploy-always-file = ./deploy-with-skipping-confirm
 check-deploy = $(if $(wildcard $(deploy-once-file) $(deploy-always-file)),1)
 
+start: # for default target
+
 include .env.makefile
 include .db.env
 
@@ -38,17 +39,26 @@ define exist-or-error
 	$(if $(wildcard $1),,$(error no $1 variable))
 endef
 
+.PHONY: start
+start: containers
+	$(DOCKER_COMPOSE) start
+
 .PHONY: up
-up: build-docker
-	$(DOCKER_COMPOSE) up $(DOCKER_COMPOSE_UP_OPT)
+up:
+	$(DOCKER_COMPOSE) up
+
+.PHONY: stop
+stop:
+	$(DOCKER_COMPOSE) stop
 
 .PHONY: down
 down:
 	$(DOCKER_COMPOSE) down
+	rm -f containers
 
-build-docker: BUILD_OPT := --build-arg WP_IMAGE_TAG=$(WP_IMAGE_TAG)
-build-docker: build
-	$(DOCKER_COMPOSE) build $(BUILD_OPT)
+containers:
+	$(MAKE) down
+	$(DOCKER_COMPOSE) up --build --no-start
 	touch $@
 
 .PHONY: logs
@@ -73,8 +83,8 @@ pull: guard-sync
 .PHONY: deploy
 deploy: RSYNC_OPT += $(if $(call check-deploy),,-n)
 deploy: guard-sync
-	$(RSYNC) $(RSYNC_OPT) $(HTML_DIR)/$(SYNC_PATH)/ $(SSH_REMOTE_HOST):$(REMOTE_DOCROOT_PATH)/$(SYNC_PATH)/
-	@[[ -z "$(call check-deploy)" ]] \
+	-$(RSYNC) $(RSYNC_OPT) $(HTML_DIR)/$(SYNC_PATH)/ $(SSH_REMOTE_HOST):$(REMOTE_DOCROOT_PATH)/$(SYNC_PATH)/
+	-@[[ -z "$(call check-deploy)" ]] \
 		&& echo 'info: You need to create a file `$(deploy-once-file)` to deploy for once or `$(deploy-always-file)` for skipping this confirmation every time.'
 	rm -f $(deploy-once-file)
 
@@ -84,7 +94,7 @@ deploy: guard-sync
 		s|$(REMOTE_DOCROOT_PATH)|$(LOCAL_DOCROOT)|g; \
 	" $< > $@
 
-%.replaced.sql.imported: %.replaced.sql | wait-db-up
+%.replaced.sql.imported: %.replaced.sql | wait-db-start
 	cat "$^" | $(DOCKER_COMPOSE) exec -T -- db sh -c 'mysql --user $$MYSQL_USER -p$$MYSQL_PASSWORD $$MYSQL_DATABASE'
 	touch $@
 
@@ -94,10 +104,14 @@ imported-sql-files = $(addsuffix .imported,$(replaced-sql-files))
 .PHONY: import-sql
 import-sql: $(imported-sql-files)
 
-.PHONY: wait-db-up
-wait-db-up: up
-	$(DOCKER_COMPOSE) exec -T -- db sh -c ' \
-		while [ ! -e /var/run/mysqld/mysqld.sock ] ; do sleep 1 ; done'
+.PHONY: wait-db-start
+wait-db-start: start
+	$(DOCKER_COMPOSE) exec -T -- db bash -c ' \
+		while ! { echo > /dev/tcp/localhost/3306; } 2> /dev/null ; do sleep 1 ; done'
+
+.PHONY: db-attach
+db-attach: start
+	$(DOCKER_COMPOSE) exec -- db bash
 
 .PHONY: init-conf
 init-conf: WP_CONF ?= $(shell $(FIND) $(HTML_DIR)/ -name $(WP_CONFIG_FILENAME) | head -n 1)
@@ -121,10 +135,14 @@ dump-remote-db:
 	@$(SSH) $(SSH_REMOTE_HOST) -- mysqldump $(MYSQLDUMP_OPT) -u $(DB_USER) -h $(DB_HOST) -p$(DB_PASSWORD) $(DB_NAME) \
 	| $(PV) > $(SQL_FILE)
 
+.PHONY: clean-imported
+clean-imported:
+	rm -f $(SQL_DIR)/*.imported
+
 .PHONY: purge-db
 purge-db:
 	$(DOCKER_COMPOSE) down -v
-	rm $(SQL_DIR)/*.imported
+	$(MAKE) clean-imported
 
 .PHONY: wp-cli
 wp-cli:

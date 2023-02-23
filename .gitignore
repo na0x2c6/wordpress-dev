@@ -11,6 +11,7 @@
 .db.env
 .envrc
 build-docker
+containers
 
 do-deploy
 deploy-with-skipping-confirm
