@@ -88,12 +88,6 @@ deploy: guard-sync
 		&& echo 'info: You need to create a file `$(deploy-once-file)` to deploy for once or `$(deploy-always-file)` for skipping this confirmation every time.'
 	rm -f $(deploy-once-file)
 
-%.replaced.sql: %.sql
-	perl -pe " \
-		s|$(SITE_URL_PATTERN)|$(LOCAL_URL)|g; \
-		s|$(REMOTE_DOCROOT_PATH)|$(LOCAL_DOCROOT)|g; \
-	" $< > $@
-
 %.sql.imported: %.sql | wait-db-start
 	cat "$^" | $(DOCKER_COMPOSE) exec -T -- db sh -c 'mysql --user $$MYSQL_USER -p$$MYSQL_PASSWORD $$MYSQL_DATABASE'
 	touch $@
