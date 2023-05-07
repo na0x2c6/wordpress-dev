@@ -94,12 +94,11 @@ deploy: guard-sync
 		s|$(REMOTE_DOCROOT_PATH)|$(LOCAL_DOCROOT)|g; \
 	" $< > $@
 
-%.replaced.sql.imported: %.replaced.sql | wait-db-start
+%.sql.imported: %.sql | wait-db-start
 	cat "$^" | $(DOCKER_COMPOSE) exec -T -- db sh -c 'mysql --user $$MYSQL_USER -p$$MYSQL_PASSWORD $$MYSQL_DATABASE'
 	touch $@
 
-replaced-sql-files = $(addsuffix .replaced.sql,$(basename $(filter-out %.replaced.sql,$(wildcard $(SQL_DIR)/*.sql))))
-imported-sql-files = $(addsuffix .imported,$(replaced-sql-files))
+imported-sql-files = $(addsuffix .imported,$(wildcard $(SQL_DIR)/*.sql))
 
 .PHONY: import-sql
 import-sql: $(imported-sql-files)
@@ -123,6 +122,19 @@ init-conf: .db.env
 		s/define\\(\\s*'DB_PASSWORD',\\s*'[^']*'\\s*\\)/define('DB_PASSWORD', '$(MYSQL_PASSWORD)')/; \
 	" $(WP_CONF)
 
+ifneq ($(and $(SITE_URL_PATTERN),$(LOCAL_URL),$(REMOTE_DOCROOT_PATH),$(LOCAL_DOCROOT)),)
+db-replaced: import-sql
+	$(DOCKER_COMPOSE) run --rm -- cli wp search-replace '$(SITE_URL_PATTERN)' '$(LOCAL_URL)'
+	$(DOCKER_COMPOSE) run --rm -- cli wp search-replace '$(REMOTE_DOCROOT_PATH)' '$(LOCAL_DOCROOT)'
+	touch $@
+else
+db-replaced:
+	$(error You must set variables all of SITE_URL_PATTERN, LOCAL_URL, REMOTE_DOCROOT_PATH, LOCAL_DOCROOT)
+endif
+
+.PHONY: db-import
+db-import: db-replaced
+
 .PHONY: dump-remote-db
 dump-remote-db: WP_CONF = $(shell $(SSH) $(SSH_REMOTE_HOST) -- find $(REMOTE_DOCROOT_PATH) -type f -name $(WP_CONFIG_FILENAME) | head -n 1)
 dump-remote-db: get-val = $(shell $(SSH) $(SSH_REMOTE_HOST) -- 'perl -nle "/\\(\\s*'"'"'$1'"'"'\\s*,\\s*'"'"'(.+)'"'"'\\s*\\)/ and print \$$1" $(WP_CONF)')
@@ -137,7 +149,7 @@ dump-remote-db:
 
 .PHONY: clean-imported
 clean-imported:
-	rm -f $(SQL_DIR)/*.imported
+	rm -f $(SQL_DIR)/*.imported db-replaced
 
 .PHONY: purge-db
 purge-db:
